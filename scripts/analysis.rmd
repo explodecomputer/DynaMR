@@ -1,0 +1,163 @@
+---
+title: Wrapper for the analysis
+date: 05/03/2021
+output: html_document
+---
+
+## Install and load required packages
+
+```{r}
+#https://github.com/explodecomputer/alspac
+
+#install.packages("devtools")
+#library(devtools)
+#install_github("explodecomputer/alspac")
+library(alspac)
+library(aod)
+```
+
+## Required functions
+
+```{r}
+# Mumps data preparation
+mumps_prep <- function(d) {
+  var_mumps <- findVars(d)
+  mumps <- extractVars(var_mumps)
+  mumps <- mumps[complete.cases(mumps), ]
+  #remove missing data according to the documentation
+  #all except below 3 items: 1 yes 2 no -1 missing
+  #ta1042: 1 Yes, in past 12 months, 2 Yes, but not in past 12 months, 3 no, never, negative - missing
+  #n1001: 1 yes, 2 no, 3 don't know, -1 missing
+  #pl1001: 1 yes, 2 no never, 3 don't know, -1 missing
+  mumps <- mumps[,c("aln","alnqlet",d)]
+  mumps <- mumps[!(mumps[,d]<0 | mumps[,d]==3),]
+  #replace all 2 (no) by 0
+  mumps[,d] <- replace(mumps[,d], which(mumps[,d] == 2), 0)
+  return(mumps)
+}
+
+# MMR data preparation
+mmr_prep <- function(d) {
+  var_mmr <- findVars(d)
+  mmr <- extractVars(var_mmr)
+  mmr <- mmr[complete.cases(mmr), ]
+  #remove missing data according to the documentation
+  #number shows how many times a child had vaccination, 9 don't know, -1 no response - removed
+  mmr <- mmr[,c("aln","alnqlet",d)]
+  mmr <- mmr[!(mmr[,d]<0 | mmr[,d]==9),]
+  #replace all positive values by 1
+  mmr[,d] <- replace(mmr[,d], which(mmr[,d] > 0), 1)
+  return(mmr)
+}
+
+# Covid data preparation
+cov_prep <- function(d) {
+  var_cov <- findVars(d)
+  cov <- extractVars(var_cov)
+  cov <- cov[complete.cases(cov), ]
+  #remove missing data according to the documentation
+  # for all covid data: 1 yes 2 no -11 Trips/Quads -10 Did not complete -9 missed section -5 Checked  no boxes in A6d1 -3 Not sought medical attention -2  no symptoms in last week -1 missing
+  cov <- cov[,c("aln","alnqlet",d)]
+  #replace no symptoms by 2
+  cov[,d] <- replace(cov[,d], which(cov[,d] == -2), 2)
+  cov <- cov[!(cov[,d]<0),]
+  cov[,d] <- replace(cov[,d], which(cov[,d] == 2), 0)
+  return(cov)
+}
+
+```
+
+
+
+## Read in the data and perform the analysis
+
+```{r}
+# ------------------------ Mumps -----------------------
+#kd178a	Child Had mumps
+#kd178b	Mumps (adj)
+##kf217	Child had mumps
+#kj192	CH EverHad Mumps
+##ta1042	A3c: Teenager has ever had mumps
+#n1001	A1b: Mother has ever had mumps	
+##d051	Had mumps	
+#pa081	Had mumps
+#pl1001	A1b: Respondent has ever had mumps
+
+# ----------------------- MMR --------------------------
+#ku829	H5e: Child has had MMR/Measles/Mumps/Rubella immunisation since age of 7
+##kf016	Childs no of MMR immunisations
+
+# --------------------- Covid -------------------------
+#covid1p_2520	a6d: If had symptoms in last week, pp sought medical attention: COVID1
+#covid1p_2521	a6d1: Pp contacted NHS 111, by phone/online about symptoms in last week: COVID1
+#covid1p_2526	a6d1: Pp went to Accident and Emergency about symptoms in last week: COVID1
+#covid1m_2526	a6d1: Pp went to Accident and Emergency about symptoms in last week: COVID1
+#covid1yp_2526	a6d1: Pp went to Accident and Emergency about symptoms in last week: COVID1
+
+# Varaibles
+mumps <- c("kd178a", "kd178b", "kj192", "n1001", "pa081", "pl1001")
+mmr <- c("ku829")
+cov <- c("covid1p_2520", "covid1p_2521", "covid1p_2526", "covid1m_2526", "covid1yp_2526")
+
+# Analysis Mumps vs Covid
+res_mumps <- c()
+
+for (i in mumps) {
+  # read data for mumps
+  m <- mumps_prep(i)
+  for (j in cov) {
+    # read data for covid
+    c <- cov_prep(j)
+    print(i)
+    print(j)
+    # Merge the two files based on ID
+    g <- merge(c, m, by.c= "aln", by.m = "aln")
+    # Logistic regression
+    mylogit <- glm(g[,j] ~ g[,i], data = g, family = "binomial")
+    # Slope and its p-val
+    sl <- coef(summary(mylogit))[2,1]
+    pval <- coef(summary(mylogit))[2,4]
+    # Sample size
+    n <- nrow(g)
+    # Save results
+    tmp <- data.frame(exp=i,out=j,coef=sl,pval=pval,size=n)
+    res_mumps <- rbind(res_mumps,tmp)
+  }
+}
+
+write.csv(res_mumps, file = "Mumps_vs_Covid.csv")
+
+
+
+
+# Analysis MMR vs Covid
+res_mmr <- c()
+
+for (i in mmr) {
+  # read data for mumps
+  m <- mmr_prep(i)
+  for (j in cov) {
+    # read data for covid
+    c <- cov_prep(j)
+    print(i)
+    print(j)
+    # Merge the two files based on ID
+    g <- merge(c, m, by.c= "aln", by.m = "aln")
+    # Logistic regression
+    mylogit <- glm(g[,j] ~ g[,i], data = g, family = "binomial")
+    # Slope and its p-val
+    sl <- coef(summary(mylogit))[2,1]
+    pval <- coef(summary(mylogit))[2,4]
+    # Sample size
+    n <- nrow(g)
+    # Save results
+    tmp <- data.frame(exp=i,out=j,coef=sl,pval=pval,size=n)
+    res_mmr <- rbind(res_mmr,tmp)
+  }
+}
+
+write.csv(res_mmr, file = "MMR_vs_Covid.csv")
+
+
+```
+
