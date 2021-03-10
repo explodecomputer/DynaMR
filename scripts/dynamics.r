@@ -126,7 +126,7 @@ simulate_dynamics <- function(starting_conditions, parm_a, parm_b, parm_c, parm_
     starting_conditions <- lapply(starting_conditions, function(x){
         x + abs(min(x)) + 0.05
     }) %>% bind_cols()
-    out_full <- pblapply(1:nrow(phen), function(i)
+    out_full <- pblapply(1:nrow(starting_conditions), function(i)
     {
         tmp <- starting_conditions[i,]
         Xt = tmp$V1
