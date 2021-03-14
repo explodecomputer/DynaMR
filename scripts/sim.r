@@ -1,4 +1,3 @@
-
 parameters <- expand.grid(
     n_id = c(1000),
     scenario = 1,
@@ -6,6 +5,7 @@ parameters <- expand.grid(
     time_end = 200,
     time_steps = 1,
     analysis_timepoint = 200,
+    per_timepoint = 30,
     disease_threshold = 0.45,
     a = 0.18,
     b = 0.27,
@@ -26,22 +26,73 @@ starting_condition_parameters <- tibble(
 )
 
 
+
 params <- parameters[1,]
 source("dynamics.r")
-out <- simulation(params, starting_condition_parameters)
 
+
+
+
+# ---------- MR analysis without perturbation ------------
 
 plot_dynamics <- function(dyn, phen, w)
 {
-    sb <- subset(dyn, subset=(Xt==phen[w,1]&Kt==phen[w,2]&Pt==phen[w,3]))
-    print(sb)
+    dyn<-as.data.frame(dyn)
+    phen<-as.data.frame(phen)
+    #sb <- subset(dyn, subset=(Xt==phen[w,1]&Kt==phen[w,2]&Pt==phen[w,3]))
+    sb <- subset(dyn, subset=(id==w))
+    #print(sb)
+    png("rplot.png") 
     matplot(sb[,1],sb[,2:7], type="l",lty=1,col = 1:6)
     abline(h=sb$Ys, col="black",lwd=1, lty=2)
-    legend("bottomright",  colnames(sb[,2:7]),col=seq_len(6),cex=0.8,fill=seq_len(6),bty = "n", xpd=TRUE)
+    legend("right",  colnames(sb[,2:7]),col=seq_len(6),cex=0.8,fill=seq_len(6),bty = "n", xpd=TRUE)
+    dev.off() 
 }
 
+out <- simulation(params, starting_condition_parameters)
 
 plot_dynamics(out$dyn, out$starting_conditions$phen, 4)
+
+
+
+# ---------- Dyn analysis without perturbation ------------
+
+per_X <- 0
+per_K <- 0
+per_P <- 0
+
+out_per <- simulation_per(params, starting_condition_parameters, per_X, per_K, per_P)
+
+plot_dynamics(out_per$dyn, out_per$starting_conditions$phen, 4)
+
+dis <- out_per$sts
+dis_n <- cbind(dis,T=0)
+
+
+
+# ---------- Dyn analysis with perturbation ------------
+
+per_X <- 0
+per_K <- 0
+per_P <- 0.2
+
+out_per <- simulation_per(params, starting_condition_parameters, per_X, per_K, per_P)
+
+plot_dynamics(out_per$dyn, out_per$starting_conditions$phen, 4)
+
+dis <- out_per$sts
+dis_p <- cbind(dis,T=1)
+
+
+dis_all <- rbind(dis_n,dis_p)
+
+
+summary(glm(D ~ T, data = dis_all, family="binomial"))
+
+
+
+
+
 
 
 

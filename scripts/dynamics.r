@@ -24,6 +24,7 @@ require(deSolve)
 #' @return List, where geno is the matrix of genotypes and phen is a data frame of the phenotypes
 simulate_starting_conditions <- function(n_phen, n_id, phen_mean, phen_var, phen_h2, genotype_af) 
 {
+    set.seed(1234)
     stopifnot(length(phen_mean) == n_phen)
     stopifnot(length(phen_var) == n_phen)
     stopifnot(length(phen_h2) == n_phen)
@@ -53,7 +54,7 @@ simulate_starting_conditions <- function(n_phen, n_id, phen_mean, phen_var, phen
 }
 
 
-# ===================== Dynamics simulation ==========================
+# ===================== Dynamics simulation without perturbation ==========================
 
 
 ###########################
@@ -123,9 +124,9 @@ steadystate <- function(a,b,c,e,f,g,Xt,Kt,Pt)
 
 simulate_dynamics <- function(starting_conditions, parm_a, parm_b, parm_c, parm_e, parm_f, parm_g, disease_threshold, time_start, time_end, time_steps)
 {
-    starting_conditions <- lapply(starting_conditions, function(x){
-        x + abs(min(x)) + 0.05
-    }) %>% bind_cols()
+    #starting_conditions <- lapply(starting_conditions, function(x){
+    #    x + abs(min(x)) + 0.05
+    #}) %>% bind_cols()
     out_full <- pblapply(1:nrow(starting_conditions), function(i)
     {
         tmp <- starting_conditions[i,]
@@ -134,6 +135,36 @@ simulate_dynamics <- function(starting_conditions, parm_a, parm_b, parm_c, parm_
         Pt = tmp$V3
         odesol <- ode(func=phosph,y=c(X=Xt,Y=0,K=Kt,XK=0,P=Pt,YP=0),parms=c(a = parm_a,b = parm_b,c = parm_c,e = parm_e,f = parm_f,g = parm_g),times=seq(time_start, time_end, by = time_steps))
         sst <- steadystate(parm_a,parm_b,parm_c,parm_e,parm_f,parm_g,Xt,Kt,Pt)
+        if (sst>=disease_threshold) {
+            ds <- 1
+        } else {
+            ds <- 0
+        }
+        o <- cbind(odesol,Xt=Xt,Kt=Kt,Pt=Pt,Ys=sst,D=ds) %>%
+            as_tibble() %>%
+            mutate(id=i)
+        return(o)
+
+    }) %>% bind_rows()
+    return(out_full)
+}
+
+simulate_dynamics_per <- function(starting_conditions, parm_a, parm_b, parm_c, parm_e, parm_f, parm_g, disease_threshold, time_start, time_end, time_steps)
+{
+    #starting_conditions <- lapply(starting_conditions, function(x){
+    #    x + abs(min(x)) + 0.05
+    #}) %>% bind_cols()
+    out_full <- pblapply(1:nrow(starting_conditions), function(i)
+    {
+        tmp <- starting_conditions[i,]
+        Xt = tmp$X
+        Yt = tmp$Y
+        Kt = tmp$K
+        XKt = tmp$XK
+        Pt = tmp$P
+        YPt = tmp$YP
+        odesol <- ode(func=phosph,y=c(X=Xt,Y=Yt,K=Kt,XK=XKt,P=Pt,YP=YPt),parms=c(a = parm_a,b = parm_b,c = parm_c,e = parm_e,f = parm_f,g = parm_g),times=seq(time_start, time_end, by = time_steps))
+        sst <- steadystate(parm_a,parm_b,parm_c,parm_e,parm_f,parm_g,Xt+Yt+XKt+YPt,Kt+XKt,Pt+YPt)
         if (sst>=disease_threshold) {
             ds <- 1
         } else {
@@ -176,6 +207,9 @@ simulation <- function(params, starting_condition_parameters)
         phen_h2=cond$phen_h2, 
         genotype_af=cond$genotype_af
     )
+    
+    starting_conditions$phen <- starting_conditions$phen + abs(min(starting_conditions$phen)) + 0.05
+
     dyn <- simulate_dynamics(
         starting_conditions = starting_conditions$phen,
         parm_a = params$a,
@@ -189,9 +223,77 @@ simulation <- function(params, starting_condition_parameters)
         time_end = params$time_end,
         time_steps = params$time_steps
     )
-    # simulate_perturbation_reaction()
+    # simulate MR
     dyn1 <- subset(dyn, time == params$analysis_timepoint)
     res <- mr_analysis(geno=starting_conditions$geno, out = dyn1, exposures=c("Xt", "Kt", "Pt"), outcomes="Ys")
     return(list(starting_conditions=starting_conditions, dyn=dyn, mr_res=res))
 }
+
+
+
+
+# ===================== Dynamics simulation with perturbation ==========================
+
+simulation_per <- function(params, starting_condition_parameters,per_X,per_K,per_P)
+{
+    # Dynamics before the perturbation
+    cond <- subset(starting_condition_parameters, scenario==params$scenario)
+    starting_conditions <- simulate_starting_conditions(
+        n_id=params$n_id, 
+        n_phen=cond$n_phen[1], 
+        phen_mean=cond$phen_mean, 
+        phen_var=cond$phen_var, 
+        phen_h2=cond$phen_h2, 
+        genotype_af=cond$genotype_af
+    )
+    
+    starting_conditions$phen <- starting_conditions$phen + abs(min(starting_conditions$phen)) + 0.05
+
+    dyn <- simulate_dynamics(
+        starting_conditions = starting_conditions$phen,
+        parm_a = params$a,
+        parm_b = params$b,
+        parm_c = params$c,
+        parm_e = params$e,
+        parm_f = params$f,
+        parm_g = params$g,
+        disease_threshold = params$disease_threshold,
+        time_start = params$time_start,
+        time_end = params$per_timepoint,
+        time_steps = params$time_steps
+    )
+
+    # Dynamics after the perturbation
+    dyn1 <- subset(dyn, time == params$per_timepoint)
+    starting_conditions_per <- as.data.frame(dyn1[,c("X","Y","K","XK","P","YP")])
+
+    starting_conditions_per$X <- starting_conditions_per$X*(1+per_X)
+    starting_conditions_per$K <- starting_conditions_per$K*(1+per_K)
+    starting_conditions_per$P <- starting_conditions_per$P*(1+per_P)
+
+    dyn_per <- simulate_dynamics_per(
+        starting_conditions = starting_conditions_per,
+        parm_a = params$a,
+        parm_b = params$b,
+        parm_c = params$c,
+        parm_e = params$e,
+        parm_f = params$f,
+        parm_g = params$g,
+        disease_threshold = params$disease_threshold,
+        time_start = params$per_timepoint,
+        time_end = params$time_end,
+        time_steps = params$time_steps
+    )
+
+    dyn_out <- rbind(as.data.frame(dyn[-c(nrow(dyn)),]),as.data.frame(dyn_per))
+    dyn2 <- subset(dyn_out, time == params$time_end)
+
+    return(list(starting_conditions=starting_conditions, dyn=dyn_out, sts=dyn2))
+
+}
+
+
+
+
+
 
