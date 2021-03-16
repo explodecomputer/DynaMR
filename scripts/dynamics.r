@@ -186,7 +186,7 @@ mr_analysis <- function(geno, out, exposures, outcomes, pval_threshold=1e-4)
     d <- lapply(1:nrow(analyses), function(i){
         simulateGP::merge_exp_out(
             simulateGP::gwas(out[[analyses$exposure[i]]], geno),
-            simulateGP::gwas(out[[analyses$outcome[i]]], geno),
+            simulateGP::gwas(out[[analyses$outcome[i]]], geno, logistic=TRUE),
             xname=analyses$exposure[i],
             yname=analyses$outcome[i]
         ) %>% filter(pval.exposure < pval_threshold) %>%
@@ -225,7 +225,7 @@ simulation <- function(params, starting_condition_parameters)
     )
     # simulate MR
     dyn1 <- subset(dyn, time == params$analysis_timepoint)
-    res <- mr_analysis(geno=starting_conditions$geno, out = dyn1, exposures=c("Xt", "Kt", "Pt"), outcomes="Ys")
+    res <- mr_analysis(geno=starting_conditions$geno, out = dyn1, exposures=c("Xt", "Kt", "Pt"), outcomes="D")
     return(list(starting_conditions=starting_conditions, dyn=dyn, mr_res=res))
 }
 
