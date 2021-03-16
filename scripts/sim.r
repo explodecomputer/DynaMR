@@ -1,3 +1,5 @@
+library(tidyverse)
+
 parameters <- expand.grid(
     n_id = c(1000),
     scenario = 1,
@@ -70,7 +72,7 @@ dis_n <- cbind(dis,T=0)
 
 
 
-# ---------- Dyn analysis with perturbation ------------
+# ---------- Dyn analysis with perturbation (P) ------------
 
 per_X <- 0
 per_K <- 0
@@ -83,11 +85,19 @@ plot_dynamics(out_per$dyn, out_per$starting_conditions$phen, 4)
 dis <- out_per$sts
 dis_p <- cbind(dis,T=1)
 
+before <- subset(out_per$dyn, time == params$per_timepoint-params$time_steps)
+after <- subset(out_per$dyn, time == params$per_timepoint+params$time_steps)
 
-dis_all <- rbind(dis_n,dis_p)
+difference <- mean(after$P)-mean(before$P)
+#difference <- (mean(dis_p$P) * 1.2) - mean(dis_p$P)
+
+regr <- summary(glm(D ~ Xt, data = dis_p, family="binomial"))
+pert <- regr$coefficients[1] / difference
+pert_se <- regr$coefficients[3] / difference
 
 
-summary(glm(D ~ T, data = dis_all, family="binomial"))
+
+
 
 
 
