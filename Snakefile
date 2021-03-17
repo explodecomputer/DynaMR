@@ -13,7 +13,8 @@ rule all:
 
 rule test_dynamics:
 	input:
-		"scripts/dynamics.r"
+		"scripts/dynamics.r",
+		"docs/test_dynamics.rmd"
 	output:
 		"docs/test_dynamics.html"
 	shell:
@@ -21,7 +22,7 @@ rule test_dynamics:
 
 rule test_starting_conditions:
 	input:
-		"scripts/starting_conditions.r"
+		"docs/test_starting_conditions.rmd"
 	output:
 		"docs/test_starting_conditions.html"
 	shell:
@@ -34,7 +35,7 @@ rule sim:
 	output:
 		expand("{resultsdir}/result.rdata", resultsdir=resultsdir)
 	shell:
-		"cd scripts; Rscript sim.r"
+		"cd scripts; Rscript sim.r {output}"
 
 rule analysis_sim:
 	input:
