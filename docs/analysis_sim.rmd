@@ -1,0 +1,26 @@
+---
+title: Results
+---
+
+Setup
+
+```{r}
+library(tidyverse)
+library(jsonlite)
+config <- read_json("../config.json")
+resfile <- file.path(config$resultsdir, "result.rdata")
+
+load(resfile)
+```
+
+Plot
+
+```{r}
+ggplot(result, aes(exposure, beta)) +
+geom_point(position=position_dodge(width=0.3), aes(colour=method, shape=pval < 0.05)) +
+geom_errorbar(position=position_dodge(width=0.3), aes(ymin=beta-se*1.96, ymax=beta+se*1.96, colour=method), width=0) +
+facet_grid(per_timepoint ~ per_effect) +
+scale_colour_brewer(type="qual")
+```
+
+

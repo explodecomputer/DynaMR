@@ -1,5 +1,5 @@
 library(data.table)
-library(dplyr)
+library(tidyverse)
 library(pbapply)
 library(simulateGP)
 library(TwoSampleMR)
@@ -49,7 +49,7 @@ simulate_starting_conditions <- function(n_phen, n_id, phen_mean, phen_var, phen
     
     return(list(
         geno=geno,
-        phen=do.call(cbind, l) %>% as_tibble()
+        phen=do.call(cbind, l) %>% as_tibble(.name_repair="minimal")
     ))
 }
 
@@ -165,6 +165,7 @@ simulate_dynamics_per <- function(starting_conditions, parm_a, parm_b, parm_c, p
         YPt = tmp$YP
         odesol <- ode(func=phosph,y=c(X=Xt,Y=Yt,K=Kt,XK=XKt,P=Pt,YP=YPt),parms=c(a = parm_a,b = parm_b,c = parm_c,e = parm_e,f = parm_f,g = parm_g),times=seq(time_start, time_end, by = time_steps))
         sst <- steadystate(parm_a,parm_b,parm_c,parm_e,parm_f,parm_g,Xt+Yt+XKt+YPt,Kt+XKt,Pt+YPt)
+        ds <- 
         if (sst>=disease_threshold) {
             ds <- 1
         } else {
@@ -180,25 +181,114 @@ simulate_dynamics_per <- function(starting_conditions, parm_a, parm_b, parm_c, p
 }
 
 
-mr_analysis <- function(geno, out, exposures, outcomes, pval_threshold=1e-4)
+mr_analysis <- function(geno, out, exposures, outcomes, instrument_threshold=1e-4)
 {
-    analyses <- expand.grid(exposure=exposures, outcome=outcomes)
+    analyses <- expand.grid(exposure=exposures, outcome=outcomes, stringsAsFactors=FALSE)
     d <- lapply(1:nrow(analyses), function(i){
         simulateGP::merge_exp_out(
             simulateGP::gwas(out[[analyses$exposure[i]]], geno),
             simulateGP::gwas(out[[analyses$outcome[i]]], geno, logistic=TRUE),
             xname=analyses$exposure[i],
             yname=analyses$outcome[i]
-        ) %>% filter(pval.exposure < pval_threshold) %>%
-        TwoSampleMR::mr(., method_list=c("mr_wald_ratio", "mr_ivw"))
+        ) %>% filter(pval.exposure < instrument_threshold) %>%
+        TwoSampleMR::mr(., method_list=c("mr_wald_ratio", "mr_ivw")) %>%
+        rename(mr_method=method) %>%
+        mutate(method="MR") %>%
+        dplyr::select(-id.exposure, -id.outcome)
+    }) %>% bind_rows()
+    return(d)
+}
+
+obs_analysis <- function(out, exposures, outcomes)
+{
+    analyses <- expand.grid(exposure=exposures, outcome=outcomes, stringsAsFactors=FALSE)
+    d <- lapply(1:nrow(analyses), function(i){
+        temp <- tibble(
+            exposure = out[[analyses$exposure[i]]],
+            outcome = out[[analyses$outcome[i]]]
+        )
+        summary(glm(outcome ~ exposure, temp, family="binomial")) %>%
+        coefficients() %>%
+        {
+            tibble(
+                exposure=analyses$exposure[i],
+                outcome=analyses$outcome[i],
+                b=.[2,1],
+                se=.[2,2],
+                pval=.[2,4],
+                method = "Obs"
+            )
+        } %>% return()
+    }) %>% bind_rows()
+    return(d)
+}
+
+per_analysis <- function(out_null, out_per, tp)
+{
+    lapply(names(out_per), function(i)
+    {
+        dper <- subset(out_per[[i]], time==tp)
+        dnull <- subset(out_null, time==tp)
+        phendiff <- mean(dper[[i]]) - mean(dnull[[i]])
+        dper$T <- 1
+        dnull$T <- 0
+        d <- bind_rows(dper, dnull)
+        mod <- summary(glm(D ~ T, data=d, family="binomial"))
+        res <- tibble(
+            exposure=i, 
+            outcome="D",
+            b = coefficients(mod)[2,1] / phendiff,
+            se = coefficients(mod)[2,2] / phendiff,
+            pval = coefficients(mod)[2,4],
+            method="RCT"
+        )
+        return(res)
     }) %>% bind_rows()
 }
 
 
+# ===================== Dynamics simulation with perturbation ==========================
+
+
+simulation_per <- function(params, starting_condition_parameters, dyn)
+{
+    # starting conditions
+
+    cond <- subset(starting_condition_parameters, scenario==params$scenario)
+
+    # Dynamics after the perturbation
+    dyn_per <- lapply(1:nrow(starting_condition_parameters), function(i)
+    {
+        message("perturbing ", starting_condition_parameters$variables[i])
+        dyn1 <- subset(dyn, time == params$per_timepoint)
+        v <- starting_condition_parameters$variables[i]
+        dyn1[[v]] <- dyn1[[v]] * (1 + params$per_effect)
+        dyn_per <- simulate_dynamics_per(
+            starting_conditions = dyn1,
+            parm_a = params$a,
+            parm_b = params$b,
+            parm_c = params$c,
+            parm_e = params$e,
+            parm_f = params$f,
+            parm_g = params$g,
+            disease_threshold = params$disease_threshold,
+            time_start = params$per_timepoint,
+            time_end = params$time_end,
+            time_steps = params$time_steps
+        )
+        return(dyn_per)
+    })
+    names(dyn_per) <- starting_condition_parameters$variables
+    return(dyn_per)
+}
+
+## overall simulation
 
 simulation <- function(params, starting_condition_parameters)
 {
     cond <- subset(starting_condition_parameters, scenario==params$scenario)
+
+    message("Generating starting conditions")
     starting_conditions <- simulate_starting_conditions(
         n_id=params$n_id, 
         n_phen=cond$n_phen[1], 
@@ -210,6 +300,7 @@ simulation <- function(params, starting_condition_parameters)
     
     starting_conditions$phen <- starting_conditions$phen + abs(min(starting_conditions$phen)) + 0.05
 
+    message("General simulation")
     dyn <- simulate_dynamics(
         starting_conditions = starting_conditions$phen,
         parm_a = params$a,
@@ -223,77 +314,47 @@ simulation <- function(params, starting_condition_parameters)
         time_end = params$time_end,
         time_steps = params$time_steps
     )
-    # simulate MR
+
+    message("Perturbations")
+    dyn_per <- simulation_per(
+        params,
+        starting_condition_parameters,
+        dyn
+    )
+
+    message("Analysis")
+    # Analyse
     dyn1 <- subset(dyn, time == params$analysis_timepoint)
-    res <- mr_analysis(geno=starting_conditions$geno, out = dyn1, exposures=c("Xt", "Kt", "Pt"), outcomes="D")
-    return(list(starting_conditions=starting_conditions, dyn=dyn, mr_res=res))
+    mrres <- mr_analysis(geno=starting_conditions$geno, out = dyn1, exposures=starting_condition_parameters$variables, outcomes="D")
+    obsres <- obs_analysis(out = dyn1, exposures=starting_condition_parameters$variables, outcomes="D")
+    perres <- per_analysis(dyn, dyn_per, params$per_timepoint)
+    res <- bind_rows(mrres, obsres, perres) %>%
+        rename(beta=b)
+    res <- bind_cols(params, res)
+    return(list(starting_conditions=starting_conditions, dyn=dyn, dyn_per=dyn_per, res=res))
 }
 
 
+## plotting
 
 
-# ===================== Dynamics simulation with perturbation ==========================
-
-simulation_per <- function(params, starting_condition_parameters,per_X,per_K,per_P)
+recreate_data <- function(dyn, dyn_per)
 {
-    # Dynamics before the perturbation
-    cond <- subset(starting_condition_parameters, scenario==params$scenario)
-    starting_conditions <- simulate_starting_conditions(
-        n_id=params$n_id, 
-        n_phen=cond$n_phen[1], 
-        phen_mean=cond$phen_mean, 
-        phen_var=cond$phen_var, 
-        phen_h2=cond$phen_h2, 
-        genotype_af=cond$genotype_af
-    )
-    
-    starting_conditions$phen <- starting_conditions$phen + abs(min(starting_conditions$phen)) + 0.05
-
-    dyn <- simulate_dynamics(
-        starting_conditions = starting_conditions$phen,
-        parm_a = params$a,
-        parm_b = params$b,
-        parm_c = params$c,
-        parm_e = params$e,
-        parm_f = params$f,
-        parm_g = params$g,
-        disease_threshold = params$disease_threshold,
-        time_start = params$time_start,
-        time_end = params$per_timepoint,
-        time_steps = params$time_steps
-    )
-
-    # Dynamics after the perturbation
-    dyn1 <- subset(dyn, time == params$per_timepoint)
-    starting_conditions_per <- as.data.frame(dyn1[,c("X","Y","K","XK","P","YP")])
-
-    starting_conditions_per$X <- starting_conditions_per$X*(1+per_X)
-    starting_conditions_per$K <- starting_conditions_per$K*(1+per_K)
-    starting_conditions_per$P <- starting_conditions_per$P*(1+per_P)
-
-    dyn_per <- simulate_dynamics_per(
-        starting_conditions = starting_conditions_per,
-        parm_a = params$a,
-        parm_b = params$b,
-        parm_c = params$c,
-        parm_e = params$e,
-        parm_f = params$f,
-        parm_g = params$g,
-        disease_threshold = params$disease_threshold,
-        time_start = params$per_timepoint,
-        time_end = params$time_end,
-        time_steps = params$time_steps
-    )
-
-    dyn_out <- rbind(as.data.frame(dyn[-c(nrow(dyn)),]),as.data.frame(dyn_per))
-    dyn2 <- subset(dyn_out, time == params$time_end)
-
-    return(list(starting_conditions=starting_conditions, dyn=dyn_out, sts=dyn2))
-
+    tp <- min(dyn_per$time)
+    dyn <- subset(dyn, time < tp)
+    return(rbind(dyn, dyn_per))
 }
 
 
-
-
-
+plot_dynamics <- function(dyn, phen, w)
+{
+    dyn<-as.data.frame(dyn)
+    phen<-as.data.frame(phen)
+    #sb <- subset(dyn, subset=(Xt==phen[w,1]&Kt==phen[w,2]&Pt==phen[w,3]))
+    sb <- subset(dyn, subset=(id==w))
+    #print(sb)
+    matplot(sb[,1],sb[,2:7], type="l",lty=1,col = 1:6)
+    abline(h=sb$Ys, col="black",lwd=1, lty=2)
+    legend("right",  colnames(sb[,2:7]),col=seq_len(6),cex=0.8,fill=seq_len(6),bty = "n", xpd=TRUE)
+}
 
