@@ -49,7 +49,7 @@ simulate_starting_conditions <- function(n_phen, n_id, phen_mean, phen_var, phen
     
     return(list(
         geno=geno,
-        phen=do.call(cbind, l) %>% as_tibble(.name_repair="minimal")
+        phen=do.call(cbind, l) %>% as_tibble()
     ))
 }
 
