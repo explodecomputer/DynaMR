@@ -54,14 +54,10 @@ simulate_starting_conditions <- function(n_phen, n_id, phen_mean, phen_var, phen
 }
 
 
-# ===================== Dynamics simulation without perturbation ==========================
+# ===================== Dynamics simulation ==========================
 
 
-###########################
-
-
-#solving an ode
-
+#solving ode system
 
 phosph <- function(Time,State,Params)
 {
@@ -79,6 +75,8 @@ phosph <- function(Time,State,Params)
     })
 }
 
+#getting rid of small complex values
+
 fs <- function(x) {
     if (Im(x)>1e-13) {
         x <- NaN
@@ -87,6 +85,8 @@ fs <- function(x) {
     }
     return(x)
 }
+
+#find steady state concentration in analytical form
 
 steadystate <- function(a,b,c,e,f,g,Xt,Kt,Pt) 
 {
@@ -122,6 +122,8 @@ steadystate <- function(a,b,c,e,f,g,Xt,Kt,Pt)
 }
 
 
+# simulate dynamics without perturbation
+
 simulate_dynamics <- function(starting_conditions, parm_a, parm_b, parm_c, parm_e, parm_f, parm_g, disease_threshold, time_start, time_end, time_steps)
 {
     #starting_conditions <- lapply(starting_conditions, function(x){
@@ -130,10 +132,21 @@ simulate_dynamics <- function(starting_conditions, parm_a, parm_b, parm_c, parm_
     out_full <- pblapply(1:nrow(starting_conditions), function(i)
     {
         tmp <- starting_conditions[i,]
-        Xt = tmp$V1
-        Kt = tmp$V2
-        Pt = tmp$V3
-        odesol <- ode(func=phosph,y=c(X=Xt,Y=0,K=Kt,XK=0,P=Pt,YP=0),parms=c(a = parm_a,b = parm_b,c = parm_c,e = parm_e,f = parm_f,g = parm_g),times=seq(time_start, time_end, by = time_steps))
+
+        # Starting concentrations
+        X0 = tmp$V1
+        Y0 = 0
+        K0 = tmp$V2
+        XK0 = 0
+        P0 = tmp$V3
+        YP0 = 0
+
+        # Total concentrations
+        Xt = X0
+        Kt = K0
+        Pt = P0
+
+        odesol <- ode(func=phosph,y=c(X=X0,Y=Y0,K=K0,XK=XK0,P=P0,YP=YP0),parms=c(a = parm_a,b = parm_b,c = parm_c,e = parm_e,f = parm_f,g = parm_g),times=seq(time_start, time_end, by = time_steps))
         sst <- steadystate(parm_a,parm_b,parm_c,parm_e,parm_f,parm_g,Xt,Kt,Pt)
         if (sst>=disease_threshold) {
             ds <- 1
@@ -149,6 +162,8 @@ simulate_dynamics <- function(starting_conditions, parm_a, parm_b, parm_c, parm_
     return(out_full)
 }
 
+# simulate dynamics with perturbation
+
 simulate_dynamics_per <- function(starting_conditions, parm_a, parm_b, parm_c, parm_e, parm_f, parm_g, disease_threshold, time_start, time_end, time_steps)
 {
     #starting_conditions <- lapply(starting_conditions, function(x){
@@ -157,14 +172,22 @@ simulate_dynamics_per <- function(starting_conditions, parm_a, parm_b, parm_c, p
     out_full <- pblapply(1:nrow(starting_conditions), function(i)
     {
         tmp <- starting_conditions[i,]
-        Xt = tmp$X
-        Yt = tmp$Y
-        Kt = tmp$K
-        XKt = tmp$XK
-        Pt = tmp$P
-        YPt = tmp$YP
-        odesol <- ode(func=phosph,y=c(X=Xt,Y=Yt,K=Kt,XK=XKt,P=Pt,YP=YPt),parms=c(a = parm_a,b = parm_b,c = parm_c,e = parm_e,f = parm_f,g = parm_g),times=seq(time_start, time_end, by = time_steps))
-        sst <- steadystate(parm_a,parm_b,parm_c,parm_e,parm_f,parm_g,Xt+Yt+XKt+YPt,Kt+XKt,Pt+YPt)
+
+        # Starting concentrations
+        X0 = tmp$X
+        Y0 = tmp$Y
+        K0 = tmp$K
+        XK0 = tmp$XK
+        P0 = tmp$P
+        YP0 = tmp$YP
+
+        # Total concentrations
+        Xt = X0+Y0+XK0+YP0
+        Kt = K0+XK0
+        Pt = P0+YP0
+
+        odesol <- ode(func=phosph,y=c(X=X0,Y=Y0,K=K0,XK=XK0,P=P0,YP=YP0),parms=c(a = parm_a,b = parm_b,c = parm_c,e = parm_e,f = parm_f,g = parm_g),times=seq(time_start, time_end, by = time_steps))
+        sst <- steadystate(parm_a,parm_b,parm_c,parm_e,parm_f,parm_g,Xt,Kt,Pt)
         ds <- 
         if (sst>=disease_threshold) {
             ds <- 1
@@ -180,6 +203,7 @@ simulate_dynamics_per <- function(starting_conditions, parm_a, parm_b, parm_c, p
     return(out_full)
 }
 
+# MR analysis
 
 mr_analysis <- function(geno, out, exposures, outcomes, instrument_threshold=1e-4)
 {
@@ -198,6 +222,8 @@ mr_analysis <- function(geno, out, exposures, outcomes, instrument_threshold=1e-
     }) %>% bind_rows()
     return(d)
 }
+
+# Observational analysis
 
 obs_analysis <- function(out, exposures, outcomes)
 {
