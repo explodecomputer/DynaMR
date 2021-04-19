@@ -6,7 +6,7 @@ title: Test starting conditions
 ```{r}
 set.seed(1234)
 library(knitr)
-source("../scripts/dynamics.r", local = knitr::knit_global())
+source("../scripts/dynamics_model1.r", local = knitr::knit_global())
 ```
 
 Example

@@ -1,4 +1,4 @@
-source("dynamics.r")
+source("dynamics_model1.r")
 
 resfile <- commandArgs(T)
 
@@ -18,7 +18,8 @@ parameters <- expand.grid(
     e = 0.18,
     f = 0.27,
     g = 0.0585,
-    pval_threshold = 1e-4
+    pval_threshold = 1e-4,
+    sim=1:1000
 )
 
 starting_condition_parameters <- tibble(

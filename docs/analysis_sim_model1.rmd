@@ -8,7 +8,7 @@ Setup
 library(tidyverse)
 library(jsonlite)
 config <- read_json("../config.json")
-resfile <- file.path(config$resultsdir, "result.rdata")
+resfile <- file.path(config$resultsdir, "result_model1.rdata")
 
 load(resfile)
 ```
@@ -23,4 +23,9 @@ facet_grid(per_timepoint ~ per_effect) +
 scale_colour_brewer(type="qual")
 ```
 
+Question: Why is the SE for X so large?
+
+```{r}
+result
+```
 
