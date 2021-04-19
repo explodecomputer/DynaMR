@@ -24,7 +24,6 @@ require(deSolve)
 #' @return List, where geno is the matrix of genotypes and phen is a data frame of the phenotypes
 simulate_starting_conditions <- function(n_phen, n_id, phen_mean, phen_var, phen_h2, genotype_af) 
 {
-    set.seed(1234)
     stopifnot(length(phen_mean) == n_phen)
     stopifnot(length(phen_var) == n_phen)
     stopifnot(length(phen_h2) == n_phen)
