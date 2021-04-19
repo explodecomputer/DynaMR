@@ -1,3 +1,4 @@
+library(parallel)
 source("dynamics_model1.r")
 
 resfile <- commandArgs(T)
@@ -32,11 +33,10 @@ starting_condition_parameters <- tibble(
     genotype_af = c(0.2, 0.3, 0.4)
 )
 
-l <- list()
-for(i in 1:nrow(parameters))
+l <- mclapply(1:nrow(parameters), function(i)
 {
-    l[[i]] <- simulation(parameters[i,], starting_condition_parameters)$res
-}
+    simulation(parameters[i,], starting_condition_parameters)$res
+}, mc.cores=16)
 
 result <- bind_rows(l)
 
