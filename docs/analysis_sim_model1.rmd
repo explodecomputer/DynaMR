@@ -23,9 +23,51 @@ facet_grid(per_timepoint ~ per_effect) +
 scale_colour_brewer(type="qual")
 ```
 
-Question: Why is the SE for X so large?
 
 ```{r}
-result
+rs <- result %>% 
+	group_by(per_timepoint, per_effect, method, exposure) %>%
+	summarise(n=n(), bhat=mean(beta), sd=sd(beta), power=sum(pval < 0.05)/n, nsnp=mean(nsnp))
+rs %>%
+	ggplot(., aes(y=bhat, x=exposure)) +
+	geom_point(position=position_dodge(width=0.3), aes(colour=method, size=power)) +
+	geom_errorbar(position=position_dodge(width=0.3), aes(ymin=bhat-sd*1.96, ymax=bhat+sd*1.96, colour=method), width=0) +
+	facet_grid(paste0("Perturbation timepoint = ", per_timepoint) ~ paste0("Perturbation effect = ", per_effect)) +
+	scale_colour_brewer(type="qual") +
+	labs(x="Exposure", y="Mean normalised beta over 100 repetitions (+/- SD)")
 ```
+
+Summary:
+
+1. The estimate of the perturbation effect is consistent whether the perturbation is negative or positive, and whether occurring at early or later point in the time course
+2. For K and P there is apparently little confounding, and the estimates agree with the perturbation effect
+3. For X there is more confounding, the MR estimate is similar to the observational estimate, which is an overestimate of the RCT effect.
+4. For X the MR estimate is almost always very imprecise, so it is seldom detected as a causal factor.
+
+A simple explanation for X having biased estimates and being imprecise is that it is capturing multiple instruments, not just the ones for X, and therefore horizontal pleiotropy
+
+```{r}
+rs <- result %>% 
+	group_by(method, exposure) %>%
+	summarise(n=n(), bhat=mean(beta), sd=sd(beta), power=sum(pval < 0.05)/n, nsnp=mean(nsnp)) %>%
+	ggplot(., aes(x=exposure, y=power)) +
+	geom_point(aes(size=nsnp))
+
+result %>%
+	filter(method == "MR") %>%
+	ggplot(., aes(x=as.factor(nsnp), y=-log10(pval))) +
+	geom_boxplot(aes(fill=exposure)) +
+	facet_grid(. ~ exposure) +
+	labs(x="Number of instruments discovered", y="MR -log10(pval)") +
+	theme(legend.position="none")
+```
+
+Summary:
+
+1. The inclusion of additional instruments drastically affected the statistical power to detect causal factors. 
+2. e.g. for K and P the power is high when only their own instruments are used, but occasionally additional instruments are detected which introduces pleiotropy, and the heterogeneity diminishes power
+3. For X, there is always at least 2 instruments detected
+
+This is akin to using both cis and trans QTLs as instruments, and it appears that in this particular system the inclusion of additional instruments does not aid the MR analysis.
+
 
