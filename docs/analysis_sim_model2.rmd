@@ -1,0 +1,191 @@
+---
+title: Model 2 simulation results
+---
+
+## Run simulation
+
+```{r}
+source("../scripts/dynamics_model2.r")
+params <- expand.grid(
+    n_id = c(1000),
+    scenario = 1,
+    time_start = 0,
+    time_end = 100,
+    time_steps = 1,
+    parm_Pbp = 0.01,
+    parm_Ppp = 10,
+    parm_Pfp = 10,
+    parm_App = 10,
+    parm_Aph = 1,
+    parm_Afp = 10,
+    parm_Afh = 1,
+    parm_Mbp = 0.01,
+    parm_Mpp = 10,
+    parm_Mph = 1,
+    parm_Fdam = 0,
+    parm_gp = 1,
+    parm_gm = 1,
+    parm_gf = 1,
+    parm_n = 2,
+    disease_threshold = 0.45
+)
+
+cond <- tibble(
+    scenario = 1,
+    n_phen = 4,
+    variables = c("p", "a", "m", "f"),
+    phen_mean = c(0.74,1.2,1,0.9),
+    phen_var = c(0.15,0.12,0.17,0.14),
+    phen_h2 = c(0.8, 0.8, 0.8, 0.8),
+    genotype_af = c(0.4, 0.4, 0.4, 0.4)
+)
+
+params %>% unlist() %>% sum() %>% set.seed()
+
+starting_conditions <- simulate_starting_conditions(
+    n_id=params$n_id, 
+    phen_names=cond$variables, 
+    phen_mean=cond$phen_mean, 
+    phen_var=cond$phen_var, 
+    phen_h2=cond$phen_h2, 
+    genotype_af=cond$genotype_af
+)
+
+starting_conditions$phen <- starting_conditions$phen + abs(min(starting_conditions$phen)) + 0.05
+
+dyn <- simulate_dynamics(
+    starting_conditions = starting_conditions$phen,
+    Pbp = params$parm_Pbp,
+    Ppp = params$parm_Ppp,
+    Pfp = params$parm_Pfp,
+    App = params$parm_App,
+    Aph = params$parm_Aph,
+    Afp = params$parm_Afp,
+    Afh = params$parm_Afh,
+    Mbp = params$parm_Mbp,
+    Mpp = params$parm_Mpp,
+    Mph = params$parm_Mph,
+    Fdam = params$parm_Fdam,
+    gp = params$parm_gp,
+    gm = params$parm_gm,
+    gf = params$parm_gf,
+    n = params$parm_n,
+    disease_threshold = params$disease_threshold,
+    time_start = params$time_start,
+    time_end = params$time_end,
+    time_steps = params$time_steps
+)
+```
+
+Example phenotype patterns over time (e.g. individual 1:
+
+```{r}
+plot_dynamics(dyn, starting_conditions$phen, 1)
+```
+
+## Genetic analysis
+
+There are 4 genotypes, one for each of `m`, `p`, `a` and `f`. 
+
+We can see how each genotype associates with each trait over time
+
+```{r}
+gres <- pblapply(unique(dyn$time), function(T)
+{
+    dyn1 <- subset(dyn, time == T)
+    gres <- lapply(c("p", "a", "f", "m"), function(v)
+    {
+        gwas(dyn1[[v]], starting_conditions$geno) %>%
+        mutate(snp=cond$variables, trait=v)
+    }) %>% 
+        bind_rows() %>%
+        mutate(time=T)
+    return(gres)
+}) %>% bind_rows()
+
+gres$pval[gres$pval < 1e-50] <- 1e-50
+
+ggplot(gres, aes(y=-log10(pval), x=time)) +
+geom_line(aes(colour=snp, linetype = snp != trait)) +
+facet_grid(paste0("trait = ",trait) ~ .) +
+scale_colour_brewer(type="qual", palette=3) +
+labs(x="Time", y="SNP-trait assoc, -log10 p-value", colour="SNP", linetype="Pleiotropy")
+```
+
+Another view, aggregating the results over time:
+
+```{r}
+gres %>% group_by(trait, snp) %>%
+    mutate(fdr=p.adjust(pval, "fdr")) %>%
+    summarise(n=n(), power=sum(fdr < 0.05)/n) %>%
+    mutate(snp=paste0("G", snp)) %>%
+    ggplot(., aes(x=snp, y=power)) +
+        geom_bar(stat="identity", aes(fill=snp), position=position_dodge(width=1)) +
+        scale_fill_brewer(type="qual", palette=3) +
+        facet_grid(. ~ trait)
+```
+
+Summary:
+
+1. The SNP-trait patterns seem to be very similar across all traits, suggesting that the traits are all highly correlated
+2. Genetic associations are highly time-dependent, with power depending on the point of the cycle being measured
+3. `f` (Fibronectin) looks like its SNP seldom associates. Is there an obvious reason why?
+
+
+## MR instruments
+
+Perform MR of each trait against every other trait, and at each timepoint
+
+
+```{r}
+analyses <- expand.grid(
+    exposure = c("p", "a", "f", "m"),
+    outcome = c("p", "a", "f", "m"),
+    time = unique(dyn$time)
+) %>% filter(exposure != outcome)
+
+gr <- pblapply(1:nrow(analyses), function(i)
+{
+    dyn1 <- subset(dyn, time == analyses$time[i])
+    get_effs(dyn1[[analyses$exposure[i]]], dyn1[[analyses$outcome[i]]], starting_conditions$geno, analyses$exposure[i], analyses$outcome[i]) %>%
+        mutate(
+            SNP=cond$variables,
+            dir_est = rsq.exposure > rsq.outcome,
+            inst = SNP == exposure
+        ) %>%
+        summarise(
+            time = analyses$time[i],
+            exposure=exposure[1],
+            outcome=outcome[1],
+            n_instruments = sum(pval.exposure < 1e-3),
+            n_instruments_steiger = sum(pval.exposure < 1e-3 & dir_est),
+            true_inst_sig = sum(pval.exposure < 1e-3 & SNP == exposure),
+            true_inst_sig_steiger = sum(pval.exposure < 1e-3 & SNP == exposure & dir_est)
+        ) %>%
+        return()
+}) %>% bind_rows()
+```
+
+For each exposure, averaging across all MR analyses what types of instruments are being identified?
+
+```{r}
+gr %>% tidyr::pivot_longer(
+    cols=c(n_instruments, n_instruments_steiger, true_inst_sig, true_inst_sig_steiger)
+) %>%
+    group_by(exposure, name) %>%
+    summarise(value=mean(value)) %>%
+    mutate(
+    	name=case_when(
+    		name == "n_instruments" ~ "Number of discovered instruments",
+    		name == "n_instruments_steiger" ~ "Number of discovered instruments after Steiger filtering",
+    		name == "true_inst_sig" ~ "True instrument discovered",
+    		name == "true_inst_sig_steiger" ~ "True instrument discovered after Steiger filtering"
+    	)
+    )
+```
+
+Summary:
+
+1. Traits often have instruments which are not only their direct genotypic effects (e.g. trait `a` often finds 2 instruments, one of which is its direct effect)
+2. Steiger filtering seems to actually make things worse - which suggests that feedback loops alter the directionality of the genotype strengths (e.g. trait `a` tends to drop its direct instrument after Steiger filtering just as often as it drops its pleiotropic effect)
+
