@@ -29,7 +29,7 @@ starting_condition_parameters <- tibble(
     variables = c("X", "K", "P"),
     phen_mean = c(0.74,1.2,1),
     phen_var = c(0.08,0.08,0.08),
-    phen_h2 = c(0.2, 0.3, 0.4),
+    phen_h2 = c(0.4, 0.4, 0.4),
     genotype_af = c(0.2, 0.3, 0.4)
 )
 
