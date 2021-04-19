@@ -5,7 +5,7 @@ title: Testing simulations
 ```{r}
 set.seed(1234)
 library(knitr)
-source("../scripts/dynamics.r", local = knitr::knit_global())
+source("../scripts/dynamics_model1.r", local = knitr::knit_global())
 ```
 
 Define parameters
