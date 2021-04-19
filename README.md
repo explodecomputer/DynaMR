@@ -10,6 +10,13 @@ Create a `config.json` file like:
 
 Then run `snakemake`
 
+```
+module add languages/anaconda3/5.2.0-tflow-1.11
+source ~/.bash_profile
+snakemake 
+
+```
+
 ---
 
 ## Starting parameters
