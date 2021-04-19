@@ -19,7 +19,7 @@ parameters <- expand.grid(
     f = 0.27,
     g = 0.0585,
     pval_threshold = 1e-4,
-    sim=1:1000
+    sim=1:100
 )
 
 starting_condition_parameters <- tibble(

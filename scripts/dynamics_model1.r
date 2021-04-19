@@ -311,6 +311,7 @@ simulation_per <- function(params, starting_condition_parameters, dyn)
 
 simulation <- function(params, starting_condition_parameters)
 {
+    params %>% unlist() %>% sum() %>% set.seed()
     cond <- subset(starting_condition_parameters, scenario==params$scenario)
 
     message("Generating starting conditions")
