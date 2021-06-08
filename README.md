@@ -1,8 +1,5 @@
 # DynaMR
 
-
-
-
 ## Paper outline
 
 - Model 1: Simple protein phosph/dephsph protein cycle
@@ -17,8 +14,8 @@
     - Instrument specificity
 - Model 4: Disease states
     - Non-linearities
+    - Genetic interactions
     - Additive genetic variance on disease
-
 
 ---
 
