@@ -1,5 +1,26 @@
 # DynaMR
 
+## Paper outline
+
+- Model 1: Simple protein phosph/dephsph protein cycle
+    - Protein level -> disease
+    - MR vs RCT vs Obs
+    - Instrument specificity
+- Model 2: Protein complex of 3 activated proteins
+    - Same questions as model 1
+- Model 3: Feedback loop using Baker et al
+    - Steiger filtering
+    - Temporal effects
+    - Instrument specificity
+- Model 4: Disease states
+    - Non-linearities
+    - Genetic interactions
+    - Additive genetic variance on disease
+
+---
+
+## Running
+
 Create a `config.json` file like:
 
 ```json
