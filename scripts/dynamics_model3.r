@@ -30,28 +30,29 @@ simulate_dynamics <- function(starting_conditions, params, n = 2, disease_thresh
         tmp1 <- params[i,]
 
         # Starting concentrations
-        p0 = tmp[,1]
-        a0 = tmp[,2]
-        m0 = tmp[,3]
-        f0 = tmp[,4]
+        p0 = as.numeric(tmp[1])
+        a0 = as.numeric(tmp[2])
+        m0 = as.numeric(tmp[3])
+        f0 = as.numeric(tmp[4])
 
         # Parameters
-        Pbp = tmp1[,1]
-        Ppp = tmp1[,2]
-        Pfp = tmp1[,3]
-        App = tmp1[,4]
-        Aph = tmp1[,5]
-        Afp = tmp1[,6]
-        Afh = tmp1[,7]
-        Mbp = tmp1[,8]
-        Mpp = tmp1[,9]
-        Mph = tmp1[,10]
-        Fdam = tmp1[,11]
-        gp = tmp1[,12]
-        gm = tmp1[,13]
-        gf = tmp1[,14]
+        Pbp = as.numeric(tmp1[1])
+        Ppp = as.numeric(tmp1[2])
+        Pfp = as.numeric(tmp1[3])
+        App = as.numeric(tmp1[4])
+        Aph = as.numeric(tmp1[5])
+        Afp = as.numeric(tmp1[6])
+        Afh = as.numeric(tmp1[7])
+        Mbp = as.numeric(tmp1[8])
+        Mpp = as.numeric(tmp1[9])
+        Mph = as.numeric(tmp1[10])
+        Fdam = as.numeric(tmp1[11])
+        gp = as.numeric(tmp1[12])
+        gm = as.numeric(tmp1[13])
+        gf = as.numeric(tmp1[14])
 
         odesol <- ode(func=phosph,y=c(p=p0,a=a0,m=m0,f=f0), parms=c(Pbp=Pbp, Ppp=Ppp, Pfp=Pfp, App=App, Aph=Aph, Afp=Afp, Afh=Afh, Mbp=Mbp, Mpp=Mpp, Mph=Mph, Fdam=Fdam, gp=gp, gm=gm, gf=gf, n=n), times=seq(0, 100, by = 1))
+        
         sst <- odesol[nrow(odesol),"m"]
         if (sst>=disease_threshold) {
             ds <- 1
