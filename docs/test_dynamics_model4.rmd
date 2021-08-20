@@ -139,5 +139,6 @@ Make 3d plots
 # remove outliers for f
 q <- out$dyn
 #q <- subset(q,fs<10)
-plot_3d(q)
+plot_3d_1(q)
+plot_3d_2(q)
 ```

@@ -6,6 +6,7 @@ library(TwoSampleMR)
 require(deSolve)
 library("scatterplot3d")
 require(deSolve)
+library("rgl")
 
 
 # =================== Starting values ======================
@@ -403,7 +404,7 @@ plot_dynamics <- function(dyn, phen, w)
     legend("right",  colnames(sb[,2:7]),col=seq_len(6),cex=0.8,fill=seq_len(6),bty = "n", xpd=TRUE)
 }
 
-plot_3d <- function(dyn)
+plot_3d_1 <- function(dyn)
 {
     dyn<-as.data.frame(dyn)
     t3 <- c()
@@ -417,3 +418,73 @@ plot_3d <- function(dyn)
     colors<-rgb(0,t3$ps/max(t3$ps),0)
     scatterplot3d(log10(t3[,c(11:13)]), pch = 16, color=colors)
 }
+
+rgl_init <- function(new.device = FALSE, bg = "white", width = 640) { 
+    if( new.device | rgl.cur() == 0 ) {
+        rgl.open()
+        par3d(windowRect = 50 + c( 0, 0, width, width ) )
+        rgl.bg(color = bg )
+    }
+    rgl.clear(type = c("shapes", "bboxdeco"))
+    rgl.viewpoint(theta = 15, phi = 20, zoom = 0.7)
+}
+
+rgl_add_axes <- function(x, y, z, axis.col = "grey",
+                         xlab = "", ylab="", zlab="", show.plane = TRUE, 
+                         show.bbox = FALSE, bbox.col = c("#333377","black"))
+{ 
+    
+    lim <- function(x){c(-max(abs(x)), max(abs(x))) * 1.1}
+    # Add axes
+    xlim <- lim(x); ylim <- lim(y); zlim <- lim(z)
+    rgl.lines(xlim, c(0, 0), c(0, 0), color = axis.col)
+    rgl.lines(c(0, 0), ylim, c(0, 0), color = axis.col)
+    rgl.lines(c(0, 0), c(0, 0), zlim, color = axis.col)
+    
+    # Add a point at the end of each axes to specify the direction
+    axes <- rbind(c(xlim[2], 0, 0), c(0, ylim[2], 0), 
+                  c(0, 0, zlim[2]))
+    rgl.points(axes, color = axis.col, size = 3)
+    
+    # Add axis labels
+    rgl.texts(axes, text = c(xlab, ylab, zlab), color = axis.col,
+              adj = c(0.5, -0.8), size = 2)
+    
+    # Add plane
+    if(show.plane) 
+        xlim <- xlim/1.1; zlim <- zlim /1.1
+    rgl.quads( x = rep(xlim, each = 2), y = c(0, 0, 0, 0),
+               z = c(zlim[1], zlim[2], zlim[2], zlim[1]))
+    
+    # Add bounding box decoration
+    if(show.bbox){
+        rgl.bbox(color=c(bbox.col[1],bbox.col[2]), alpha = 0.5, 
+                 emission=bbox.col[1], specular=bbox.col[1], shininess=5, 
+                 xlen = 3, ylen = 3, zlen = 3) 
+    }
+}
+
+plot_3d_2 <- function(dyn)
+{
+    dyn<-as.data.frame(dyn)
+    t3 <- c()
+    for(w in 1:1000)
+    {
+        t1 <- subset(dyn, subset=(id==w))
+        t2 <- t1[1,]
+        t3 <- rbind(t3,t2)
+    }
+    t3 <- t3[complete.cases(t3),]
+    colors<-rgb(0,t3$ps/max(t3$ps),0)
+
+    x <- as <- log10(t3$as)
+    y <- ms <- log10(t3$ms)
+    z <- fs <- log10(t3$fs)
+
+    rgl_init()
+    rgl.spheres(x, y, z, r = 0.2, color = colors) 
+    rgl_add_axes(x, y, z, show.bbox = TRUE, xlab ="as", ylab = "ms", zlab = "fs")
+    aspect3d(1,1,1)
+    
+}
+
