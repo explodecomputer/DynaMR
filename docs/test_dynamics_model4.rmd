@@ -18,7 +18,9 @@ consts <- expand.grid(
     time_end = 100,
     time_steps = 1,
     parm_n = 2,
-    disease_threshold = 0.45
+    per_timepoint = 30,
+    per_effect = 0.2,
+    disease_threshold = 0.5
 )
 
 cond <- tibble(
@@ -128,9 +130,10 @@ plot_dynamics(out$dyn, out$starting_conditions$phen, 4)
 Time course of different perturbations
 
 ```{r}
-#plot_dynamics(recreate_data(out$dyn, out$dyn_per$X), out$starting_conditions$phen, 4)
-#plot_dynamics(recreate_data(out$dyn, out$dyn_per$P), out$starting_conditions$phen, 4)
-#plot_dynamics(recreate_data(out$dyn, out$dyn_per$K), out$starting_conditions$phen, 4)
+plot_dynamics(recreate_data(out$dyn, out$dyn_per$p), out$starting_conditions$phen, 4)
+plot_dynamics(recreate_data(out$dyn, out$dyn_per$a), out$starting_conditions$phen, 4)
+plot_dynamics(recreate_data(out$dyn, out$dyn_per$m), out$starting_conditions$phen, 4)
+plot_dynamics(recreate_data(out$dyn, out$dyn_per$f), out$starting_conditions$phen, 4)
 ```
 
 Make 3d plots
