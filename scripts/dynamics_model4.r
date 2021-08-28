@@ -178,50 +178,6 @@ simulate_dynamics <- function(starting_conditions, params, n = 2, disease_thresh
     }) %>% bind_rows()
 }
 
-<<<<<<< HEAD
-=======
-# simulate dynamics with perturbation!!!!!!!!!!!!!!!!!!!!
-
-simulate_dynamics_per <- function(starting_conditions, parm_a, parm_b, parm_c, parm_e, parm_f, parm_g, disease_threshold, time_start, time_end, time_steps)
-{
-    #starting_conditions <- lapply(starting_conditions, function(x){
-    #    x + abs(min(x)) + 0.05
-    #}) %>% bind_cols()
-    out_full <- pblapply(1:nrow(starting_conditions), function(i)
-    {
-        tmp <- starting_conditions[i,]
-
-        # Starting concentrations
-        X0 = tmp$X
-        Y0 = tmp$Y
-        K0 = tmp$K
-        XK0 = tmp$XK
-        P0 = tmp$P
-        YP0 = tmp$YP
-
-        # Total concentrations
-        Xt = X0+Y0+XK0+YP0
-        Kt = K0+XK0
-        Pt = P0+YP0
-
-        odesol <- ode(func=ode_sys,y=c(X=X0,Y=Y0,K=K0,XK=XK0,P=P0,YP=YP0),parms=c(a = parm_a,b = parm_b,c = parm_c,e = parm_e,f = parm_f,g = parm_g),times=seq(time_start, time_end, by = time_steps))
-        sst <- steadystate(parm_a,parm_b,parm_c,parm_e,parm_f,parm_g,Xt,Kt,Pt)
-        ds <- 
-        if (sst>=disease_threshold) {
-            ds <- 1
-        } else {
-            ds <- 0
-        }
-        o <- cbind(odesol,Xt=Xt,Kt=Kt,Pt=Pt,Ys=sst,D=ds) %>%
-            as_tibble() %>%
-            mutate(id=i)
-        return(o)
-
-    }) %>% bind_rows()
-    return(out_full)
-}
-
->>>>>>> 4eb3a3ae05592178e7000bfb41e57d78ff150528
 # MR analysis
 
 mr_analysis <- function(geno, out, exposures, outcomes, instrument_threshold=1e-4)
@@ -239,12 +195,9 @@ mr_analysis <- function(geno, out, exposures, outcomes, instrument_threshold=1e-
         dplyr::select(-id.exposure, -id.outcome)
     }) %>% bind_rows() %>%
         rename(mr_method=method)
-<<<<<<< HEAD
     if (nrow(d)==0) {
         d<-data.frame(outcome=NA,exposure=NA,mr_method=NA,nsnp=NA,b=NA,se=NA,pval=NA,method="MR")
     }
-=======
->>>>>>> 4eb3a3ae05592178e7000bfb41e57d78ff150528
     return(d)
 }
 
@@ -301,7 +254,6 @@ per_analysis <- function(out_null, out_per, tp)
 # ===================== Dynamics simulation with perturbation ==========================
 
 
-<<<<<<< HEAD
 simulation_per <- function(params, starting_condition_parameters, consts, dyn)
 {
     # starting conditions
@@ -345,37 +297,6 @@ simulation_per <- function(params, starting_condition_parameters, consts, dyn)
         return(dyn_per)
     })
     names(dyn_per) <- pert_v
-=======
-simulation_per <- function(params, starting_condition_parameters, dyn)
-{
-    # starting conditions
-
-    cond <- subset(starting_condition_parameters, scenario==params$scenario)
-
-    # Dynamics after the perturbation
-    dyn_per <- lapply(1:nrow(starting_condition_parameters), function(i)
-    {
-        message("perturbing ", starting_condition_parameters$variables[i])
-        dyn1 <- subset(dyn, time == params$per_timepoint)
-        v <- starting_condition_parameters$variables[i]
-        dyn1[[v]] <- dyn1[[v]] * (1 + params$per_effect)
-        dyn_per <- simulate_dynamics_per(
-            starting_conditions = dyn1,
-            parm_a = params$a,
-            parm_b = params$b,
-            parm_c = params$c,
-            parm_e = params$e,
-            parm_f = params$f,
-            parm_g = params$g,
-            disease_threshold = params$disease_threshold,
-            time_start = params$per_timepoint,
-            time_end = params$time_end,
-            time_steps = params$time_steps
-        )
-        return(dyn_per)
-    })
-    names(dyn_per) <- starting_condition_parameters$variables
->>>>>>> 4eb3a3ae05592178e7000bfb41e57d78ff150528
     return(dyn_per)
 }
 
@@ -421,7 +342,6 @@ simulation <- function(cond_p, starting_condition_parameters, consts)
         time_steps = consts$time_steps
     )
 
-<<<<<<< HEAD
     message("Perturbations")
     dyn_per <- simulation_per(
         params,
@@ -444,20 +364,6 @@ simulation <- function(cond_p, starting_condition_parameters, consts)
     res <- bind_cols(consts, res)
     return(list(starting_conditions=starting_conditions, dyn=dyn, dyn_per=dyn_per, res=res))
     #return(list(starting_conditions=starting_conditions, dyn=dyn))
-=======
-
-    #message("Analysis")
-    # Analyse
-    #dyn1 <- subset(dyn, time == params$analysis_timepoint)
-    #mrres <- mr_analysis(geno=starting_conditions$geno, out = dyn1, exposures=starting_condition_parameters$variables, outcomes="D")
-    #obsres <- obs_analysis(out = dyn1, exposures=starting_condition_parameters$variables, outcomes="D")
-    #perres <- per_analysis(dyn, dyn_per, params$per_timepoint)
-    #res <- bind_rows(mrres, obsres, perres) %>%
-    #    rename(beta=b)
-    #res <- bind_cols(params, res)
-    #return(list(starting_conditions=starting_conditions, dyn=dyn, dyn_per=dyn_per, res=res))
-    return(list(starting_conditions=starting_conditions, dyn=dyn))
->>>>>>> 4eb3a3ae05592178e7000bfb41e57d78ff150528
 }
 
 

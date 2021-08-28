@@ -39,15 +39,6 @@ starting_conditions <- simulate_starting_conditions(
 
 starting_conditions$phen <- t(t(starting_conditions$phen) + abs(apply(starting_conditions$phen,2,min))+apply(starting_conditions$phen,2,max)*0.001)
 
-<<<<<<< HEAD
-=======
-hist(starting_conditions$phen[,1],xlab="p") 
-hist(starting_conditions$phen[,2],xlab="a") 
-hist(starting_conditions$phen[,3],xlab="m") 
-hist(starting_conditions$phen[,4],xlab="f") 
-
-
->>>>>>> 4eb3a3ae05592178e7000bfb41e57d78ff150528
 cond_p <- tibble(
     scenario = 1,
     n_phen = 14,
@@ -69,25 +60,6 @@ params <- simulate_params(
 
 params$par <- t(t(params$par) + abs(apply(params$par,2,min))+apply(params$par,2,max)*0.001)
 
-<<<<<<< HEAD
-=======
-hist(params$par[,1],xlab="Pbp") 
-hist(params$par[,2],xlab="Ppp") 
-hist(params$par[,3],xlab="Pfp") 
-hist(params$par[,4],xlab="App") 
-hist(params$par[,5],xlab="Aph") 
-hist(params$par[,6],xlab="Afp") 
-hist(params$par[,7],xlab="Afh") 
-hist(params$par[,8],xlab="Mbp") 
-hist(params$par[,9],xlab="Mpp") 
-hist(params$par[,10],xlab="Mph") 
-hist(params$par[,11],xlab="Fdam") 
-hist(params$par[,12],xlab="gp")
-hist(params$par[,13],xlab="gm") 
-hist(params$par[,14],xlab="gf") 
-
-
->>>>>>> 4eb3a3ae05592178e7000bfb41e57d78ff150528
 dyn <- simulate_dynamics(
     starting_conditions = starting_conditions$phen,
     params = params$par,

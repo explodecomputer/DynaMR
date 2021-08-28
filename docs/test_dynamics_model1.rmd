@@ -45,11 +45,8 @@ Run example simulation
 
 ```{r}
 out <- simulation(params, starting_condition_parameters)
-<<<<<<< HEAD
 
 save(out, file = paste0("../results/","sim_data_model1.RData"))
-=======
->>>>>>> 4eb3a3ae05592178e7000bfb41e57d78ff150528
 ```
 
 Distribution of variables at final time point
