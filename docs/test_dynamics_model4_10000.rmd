@@ -1,0 +1,147 @@
+---
+title: Testing simulations
+---
+
+```{r}
+set.seed(1234)
+library(knitr)
+source("../scripts/dynamics_model4.r", local = knitr::knit_global())
+```
+
+Define parameters
+
+```{r}
+consts <- expand.grid(
+    n_id = c(10000),
+    scenario = 1,
+    time_start = 0,
+    time_end = 100,
+    time_steps = 1,
+    parm_n = 2,
+    per_timepoint = 30,
+    per_effect = 0.2,
+    disease_threshold = 0.5
+)
+
+cond <- tibble(
+    scenario = 1,
+    n_phen = 4,
+    variables = c("p", "a", "m", "f"),
+    phen_mean = c(1,7.5,3,3),
+    phen_var = c(1,7.5,3,3),
+    phen_h2 = c(0.8, 0.8, 0.8, 0.8),
+    genotype_af = c(0.4, 0.4, 0.4, 0.4)
+)
+
+consts %>% unlist() %>% sum() %>% set.seed()
+
+starting_conditions <- simulate_starting_conditions(
+    n_id=consts$n_id, 
+    phen_names=cond$variables, 
+    phen_mean=cond$phen_mean, 
+    phen_var=cond$phen_var, 
+    phen_h2=cond$phen_h2, 
+    genotype_af=cond$genotype_af
+)
+
+starting_conditions$phen <- t(t(starting_conditions$phen) + abs(apply(starting_conditions$phen,2,min))+apply(starting_conditions$phen,2,max)*0.001)
+
+hist(starting_conditions$phen[,1],xlab="p", breaks = 100) 
+hist(starting_conditions$phen[,2],xlab="a", breaks = 100) 
+hist(starting_conditions$phen[,3],xlab="m", breaks = 100) 
+hist(starting_conditions$phen[,4],xlab="f", breaks = 100) 
+
+
+cond_p <- tibble(
+    scenario = 1,
+    n_phen = 14,
+    variables = c("Pbp", "Ppp", "Pfp", "App", "Aph", "Afp", "Afh", "Mbp", "Mpp", "Mph", "Fdam", "gp", "gm", "gf"),
+    par_mean = c(0.25,200,25,75,1.5,80,2.5,0.05,25,5,0.05,5,5,2.5),
+    par_var = c(0.25,200,25,75,1.5,80,2.5,0.05,25,5,0.05,5,5,2.5),
+    par_h2 = c(0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8),
+    genotype_af = c(0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4)
+)
+
+params <- simulate_params(
+    n_id=consts$n_id, 
+    par_names=cond_p$variables, 
+    par_mean=cond_p$par_mean, 
+    par_var=cond_p$par_var, 
+    par_h2=cond_p$par_h2, 
+    genotype_af=cond_p$genotype_af
+)
+
+params$par <- t(t(params$par) + abs(apply(params$par,2,min))+apply(params$par,2,max)*0.001)
+
+hist(params$par[,1],xlab="Pbp", breaks = 100) 
+hist(params$par[,2],xlab="Ppp", breaks = 100) 
+hist(params$par[,3],xlab="Pfp", breaks = 100) 
+hist(params$par[,4],xlab="App", breaks = 100) 
+hist(params$par[,5],xlab="Aph", breaks = 100) 
+hist(params$par[,6],xlab="Afp", breaks = 100) 
+hist(params$par[,7],xlab="Afh", breaks = 100) 
+hist(params$par[,8],xlab="Mbp", breaks = 100) 
+hist(params$par[,9],xlab="Mpp", breaks = 100) 
+hist(params$par[,10],xlab="Mph", breaks = 100) 
+hist(params$par[,11],xlab="Fdam", breaks = 100) 
+hist(params$par[,12],xlab="gp", breaks = 100)
+hist(params$par[,13],xlab="gm", breaks = 100) 
+hist(params$par[,14],xlab="gf", breaks = 100) 
+```
+
+Run example simulation
+
+```{r}
+#parameters <- params$par[1,]
+#starting_condition_parameters <- starting_conditions$phen[1,]
+
+
+out <- simulation(cond_p, cond, consts)
+
+save(out, file = paste0("../results/","sim_data_model4_10000.RData"))
+```
+
+Distribution of variables at steady-state
+
+```{r}
+out$dyn %>% 
+    subset(time == 0) %>%
+    {hist(.$ps, breaks = 100)}
+
+out$dyn %>% 
+    subset(time == 0) %>%
+    {hist(.$as, breaks = 100)}
+
+out$dyn %>% 
+    subset(time == 0) %>%
+    {hist(.$ms, breaks = 100)}
+
+out$dyn %>% 
+    subset(time == 0) %>%
+    {hist(.$fs, breaks = 100)}
+```
+
+Time course of standard dynamics
+
+```{r}
+plot_dynamics(out$dyn, out$starting_conditions$phen, 4)
+```
+
+Time course of different perturbations
+
+```{r}
+plot_dynamics(recreate_data(out$dyn, out$dyn_per$p), out$starting_conditions$phen, 4)
+plot_dynamics(recreate_data(out$dyn, out$dyn_per$a), out$starting_conditions$phen, 4)
+plot_dynamics(recreate_data(out$dyn, out$dyn_per$m), out$starting_conditions$phen, 4)
+plot_dynamics(recreate_data(out$dyn, out$dyn_per$f), out$starting_conditions$phen, 4)
+```
+
+Make 3d plots
+
+```{r}
+# remove outliers for f
+q <- out$dyn
+#q <- subset(q,fs<10)
+plot_3d_1(q)
+plot_3d_2(q)
+```
