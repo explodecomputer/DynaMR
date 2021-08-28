@@ -32,8 +32,12 @@
 - Model 4: Baker et al model
     - Both starting conditions and parameters for population are simulated
     - Includes steady-state analysis as in Model 1
+<<<<<<< HEAD
 - Model 5: Protein complex of 2 activated proteins and complexes, STAT system example
     - The code to run dynamics simulation is /scripts/dynamics_model5_test_run.r
+=======
+- Model 5: Protein complex of 2 activated proteins and complexes
+>>>>>>> 4eb3a3ae05592178e7000bfb41e57d78ff150528
 
 ---
 
