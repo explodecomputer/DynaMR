@@ -11,28 +11,65 @@ config <- read_json("../config.json")
 resfile <- file.path(config$resultsdir, "result_model1.rdata")
 
 load(resfile)
+result
+result$SNP[result$SNP == "1"] <- "gX"
+result$SNP[result$SNP == "2"] <- "gK"
+result$SNP[result$SNP == "3"] <- "gP"
+result$SNP[result$SNP == "All - Inverse variance weighted"] <- "IVW"
+result %>% subset(method == "MRS") %>%
+  group_by(exposure, SNP) %>%
+  summarise(n=n())
+
+temp <- result$SNP
+temp[is.na(temp)] <- ""
+result$methodc <- paste(result$method, temp)
+table(result$methodc)
 ```
+
+```{r}
+result <- result %>%
+  group_by(exposure, sim, per_timepoint, per_effect) %>% 
+  do({
+    nsnp = sum(grepl("^g", .$SNP))
+    i <- which(.$SNP == "IVW")
+    if(is.na(.$beta[i]))
+    {
+      j <- which(grepl("^g", .$SNP))
+      .$beta[i] <- .$beta[j]
+      .$se[i] <- .$se[j]
+      .$p[i] <- .$p[j]
+    }
+    .$nsnp <- nsnp
+    .
+  })
+subset(result, nsnp == 1)
+```
+
 
 Plot
 
 ```{r}
-ggplot(result, aes(exposure, beta)) +
-geom_point(position=position_dodge(width=0.3), aes(colour=method, shape=pval < 0.05)) +
-geom_errorbar(position=position_dodge(width=0.3), aes(ymin=beta-se*1.96, ymax=beta+se*1.96, colour=method), width=0) +
-facet_grid(per_timepoint ~ per_effect) +
-scale_colour_brewer(type="qual")
+result %>% subset(method != "MRS") %>%
+  ggplot(., aes(exposure, beta)) +
+  geom_point(position=position_dodge(width=0.3), aes(colour=methodc, shape=pval < 0.05)) +
+  geom_errorbar(position=position_dodge(width=0.3), aes(ymin=beta-se*1.96, ymax=beta+se*1.96, colour=methodc), width=0) +
+  facet_grid(per_timepoint ~ per_effect) +
+  geom_hline(yintercept=0) +
+  scale_colour_brewer(type="qual")
 ```
 
 
 ```{r}
 rs <- result %>% 
+  filter(method != "MR" & !grepl("g", SNP)) %>%
 	group_by(per_timepoint, per_effect, method, exposure) %>%
-	summarise(n=n(), bhat=mean(beta), sd=sd(beta), power=sum(pval < 0.05)/n, nsnp=mean(nsnp))
+	summarise(n=n(), bhat=mean(beta), sd=sd(beta), power=sum(pval < 0.05)/n)
 rs %>%
 	ggplot(., aes(y=bhat, x=exposure)) +
 	geom_point(position=position_dodge(width=0.3), aes(colour=method, size=power)) +
 	geom_errorbar(position=position_dodge(width=0.3), aes(ymin=bhat-sd*1.96, ymax=bhat+sd*1.96, colour=method), width=0) +
 	facet_grid(paste0("Perturbation timepoint = ", per_timepoint) ~ paste0("Perturbation effect = ", per_effect)) +
+  geom_hline(yintercept=0) +
 	scale_colour_brewer(type="qual") +
 	labs(x="Exposure", y="Mean normalised beta over 100 repetitions (+/- SD)")
 ```
@@ -48,13 +85,13 @@ A simple explanation for X having biased estimates and being imprecise is that i
 
 ```{r}
 rs <- result %>% 
+  filter(method != "MRS" & !grepl("g", SNP)) %>%
 	group_by(method, exposure) %>%
 	summarise(n=n(), bhat=mean(beta), sd=sd(beta), power=sum(pval < 0.05)/n, nsnp=mean(nsnp)) %>%
 	ggplot(., aes(x=exposure, y=power)) +
 	geom_point(aes(size=nsnp))
 
 result %>%
-	filter(method == "MR") %>%
 	ggplot(., aes(x=as.factor(nsnp), y=-log10(pval))) +
 	geom_boxplot(aes(fill=exposure)) +
 	facet_grid(. ~ exposure) +
@@ -69,5 +106,21 @@ Summary:
 3. For X, there is always at least 2 instruments detected
 
 This is akin to using both cis and trans QTLs as instruments, and it appears that in this particular system the inclusion of additional instruments does not aid the MR analysis.
+
+
+
+## Update
+
+```{r}
+subset(result, grepl("g", SNP)) %>%
+  rowwise %>%
+  mutate(cistrans = ifelse(grepl(exposure, SNP), "cis", "trans")) %>%
+  ggplot(., aes(x=SNP, y=beta)) +
+  geom_violin(aes(colour=cistrans, fill=cistrans)) +
+  facet_grid(. ~ exposure, scale="free_y", labeller=labeller(.cols=label_both)) +
+  geom_hline(yintercept=0) +
+  labs(colour="Instrument", fill="Instrument")
+```
+
 
 
