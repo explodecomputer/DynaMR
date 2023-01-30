@@ -214,13 +214,31 @@ mr_analysis <- function(geno, out, exposures, outcomes, instrument_threshold=1e-
             xname=analyses$exposure[i],
             yname=analyses$outcome[i]
         ) %>% filter(pval.exposure < instrument_threshold) %>%
-        TwoSampleMR::mr(., method_list=c("mr_wald_ratio", "mr_ivw")) %>%
+        TwoSampleMR::mr(., method_list=c("mr_wald_ratio")) %>%
         rename(mr_method=method) %>%
         mutate(method="MR") %>%
         dplyr::select(-id.exposure, -id.outcome)
     }) %>% bind_rows()
     return(d)
 }
+
+mrs_analysis <- function(geno, out, exposures, outcomes, instrument_threshold=1e-4)
+{
+    analyses <- expand.grid(exposure=exposures, outcome=outcomes, stringsAsFactors=FALSE)
+    d <- lapply(1:nrow(analyses), function(i){
+        simulateGP::merge_exp_out(
+            simulateGP::gwas(out[[analyses$exposure[i]]], geno),
+            simulateGP::gwas(out[[analyses$outcome[i]]], geno, logistic=TRUE),
+            xname=analyses$exposure[i],
+            yname=analyses$outcome[i]
+        ) %>% filter(pval.exposure < instrument_threshold) %>%
+        TwoSampleMR::mr_singlesnp(., all_method = c("mr_ivw")) %>%
+        mutate(method="MRS") %>%
+        dplyr::select(-id.exposure, -id.outcome)
+    }) %>% bind_rows()
+    return(d)
+}
+
 
 # Observational analysis
 
@@ -351,10 +369,11 @@ simulation <- function(params, starting_condition_parameters)
     message("Analysis")
     # Analyse
     dyn1 <- subset(dyn, time == params$analysis_timepoint)
-    mrres <- mr_analysis(geno=starting_conditions$geno, out = dyn1, exposures=starting_condition_parameters$variables, outcomes="D")
+    # mrres <- mr_analysis(geno=starting_conditions$geno, out = dyn1, exposures=starting_condition_parameters$variables, outcomes="D")
+    mrsres <- mrs_analysis(geno=starting_conditions$geno, out = dyn1, exposures=starting_condition_parameters$variables, outcomes="D")
     obsres <- obs_analysis(out = dyn1, exposures=starting_condition_parameters$variables, outcomes="D")
     perres <- per_analysis(dyn, dyn_per, params$per_timepoint)
-    res <- bind_rows(mrres, obsres, perres) %>%
+    res <- bind_rows(mrsres, obsres, perres) %>%
         rename(beta=b)
     res <- bind_cols(params, res)
     return(list(starting_conditions=starting_conditions, dyn=dyn, dyn_per=dyn_per, res=res))
