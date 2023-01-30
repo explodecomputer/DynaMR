@@ -1,5 +1,6 @@
 library(parallel)
-source("dynamics_model1.r")
+library(here)
+source(here("scripts/dynamics_model1.r"))
 
 resfile <- commandArgs(T)
 
