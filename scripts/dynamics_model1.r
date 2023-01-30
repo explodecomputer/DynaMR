@@ -369,11 +369,11 @@ simulation <- function(params, starting_condition_parameters)
     message("Analysis")
     # Analyse
     dyn1 <- subset(dyn, time == params$analysis_timepoint)
-    # mrres <- mr_analysis(geno=starting_conditions$geno, out = dyn1, exposures=starting_condition_parameters$variables, outcomes="D")
+    mrres <- mr_analysis(geno=starting_conditions$geno, out = dyn1, exposures=starting_condition_parameters$variables, outcomes="D")
     mrsres <- mrs_analysis(geno=starting_conditions$geno, out = dyn1, exposures=starting_condition_parameters$variables, outcomes="D")
     obsres <- obs_analysis(out = dyn1, exposures=starting_condition_parameters$variables, outcomes="D")
     perres <- per_analysis(dyn, dyn_per, params$per_timepoint)
-    res <- bind_rows(mrsres, obsres, perres) %>%
+    res <- bind_rows(mrsres, mrres, obsres, perres) %>%
         rename(beta=b)
     res <- bind_cols(params, res)
     return(list(starting_conditions=starting_conditions, dyn=dyn, dyn_per=dyn_per, res=res))
